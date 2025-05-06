@@ -1,7 +1,7 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import '@radix-ui/themes/styles.css';
-import { Theme } from '@radix-ui/themes';
+import { Avatar, Code, IconButton, Table, Theme } from '@radix-ui/themes';
 
 import {
   ReactFlow,
@@ -22,6 +22,8 @@ import {
   Flex,
   Button,
   Text,
+  Tooltip,
+  HoverCard,
 } from '@radix-ui/themes';
 import {
   MixerHorizontalIcon,
@@ -29,6 +31,9 @@ import {
   PaperPlaneIcon,
   TrashIcon,
   PlusIcon,
+  LightningBoltIcon,
+  GearIcon,
+  InfoCircledIcon,
 } from '@radix-ui/react-icons';
 
 import '@xyflow/react/dist/style.css';
@@ -36,22 +41,53 @@ import '@xyflow/react/dist/style.css';
 const initialNodes = [
   {
     id: '1',
-    type: 'llm',
-    position: { x: 100, y: 100 },
-    data: { label: 'AI Model 1' },
+    type: 'io',
+    position: { x: -50, y: 100 },
+    data: {
+      io_type: 'Input',
+      data_type: 'Voice',
+      source_position: Position.Top,
+      target_position: Position.Bottom,
+    },
   },
   {
-    id: '2',
-    type: 'api',
-    position: { x: 400, y: 100 },
-    data: { label: 'API Call 1' },
+    id: '2a',
+    type: 'ai',
+    position: { x: -50, y: 250 },
+    data: {
+      model: 'TTS',
+      source_position: Position.Top,
+      target_position: Position.Right,
+    },
+  },
+  {
+    id: '2b',
+    type: 'ai',
+    position: { x: 250, y: 250 },
+    data: {
+      model: 'LLM',
+      source_position: Position.Left,
+      target_position: Position.Bottom,
+    },
   },
   {
     id: '3',
-    type: 'conditional',
-    position: { x: 700, y: 100 },
+    type: 'tool',
+    position: { x: 250, y: 400 },
+    data: {
+      label: 'API Call 1',
+      source_position: Position.Top,
+      target_position: Position.Left,
+    },
+  },
+  {
+    id: '4',
+    type: 'logic',
+    position: { x: -50, y: 400 },
     data: {
       label: 'Condition 1',
+      source_position: Position.Right,
+      target_position: Position.Bottom,
       conditions: [
         { source: 'API Response', operator: 'contains', value: 'success' },
       ],
@@ -60,236 +96,341 @@ const initialNodes = [
     },
   },
   {
-    id: '4',
-    type: 'llm',
-    position: { x: 100, y: 300 },
-    data: { label: 'AI Model 2' },
+    id: '5a',
+    type: 'ai',
+    position: { x: -50, y: 550 },
+    data: {
+      model: 'STT',
+      source_position: Position.Top,
+      target_position: Position.Right,
+    },
   },
   {
-    id: '5',
-    type: 'api',
-    position: { x: 400, y: 300 },
-    data: { label: 'API Call 2' },
+    id: '5b',
+    type: 'ai',
+    position: { x: 250, y: 550 },
+    data: {
+      model: 'LLM',
+      source_position: Position.Left,
+      target_position: Position.Bottom,
+    },
   },
   {
     id: '6',
-    type: 'conditional',
-    position: { x: 700, y: 300 },
+    type: 'io',
+    position: { x: 250, y: 700 },
     data: {
-      label: 'Condition 2',
-      conditions: [
-        { source: 'API Response', operator: 'equals', value: 'error' },
-      ],
-      addCondition: () => {},
-      removeCondition: () => {},
+      io_type: 'Output',
+      data_type: 'Voice',
+      source_position: Position.Top,
+      target_position: Position.Bottom,
     },
   },
 ];
 
 const initialEdges = [
-  { id: 'e1-2', source: '1', target: '2', label: 'Process Data' },
-  { id: 'e2-3', source: '2', target: '3', label: 'Check Response' },
-  { id: 'e4-5', source: '4', target: '5', label: 'Process Data' },
-  { id: 'e5-6', source: '5', target: '6', label: 'Check Response' },
-  { id: 'e3-6', source: '3', target: '6', label: 'Merge Results' },
+  { id: 'e1-2', source: '2a', target: '1', label: 'Process Data' },
+  { id: 'e2-3', source: '2b', target: '2a', label: '' },
+  { id: 'e3-4', source: '3', target: '2b', label: '' },
+  { id: 'e5-6', source: '4', target: '3', label: '' },
+  { id: 'e6-7', source: '5a', target: '4', label: '' },
+  { id: 'e7-8', source: '5b', target: '5a', label: '' },
+  { id: 'e8-9', source: '6', target: '5b', label: '' },
 ];
 
-const LLMNode = ({}) => {
+const IONode = ({ data }) => {
   return (
-    <Card>
-      <div>
-        <span className="text-blue-10 mr-2">🤖</span>
-        <span className="font-medium text-gray-12">AI Model</span>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger className="ml-auto">
-            <DotsHorizontalIcon className="text-gray-10 hover:text-gray-12" />
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Content align="end" className="min-w-[160px]">
-            <DropdownMenu.Item>Settings</DropdownMenu.Item>
-            <DropdownMenu.Item>Duplicate</DropdownMenu.Item>
-            <DropdownMenu.Separator />
-            <DropdownMenu.Item>Delete</DropdownMenu.Item>
-          </DropdownMenu.Content>
-        </DropdownMenu.Root>
-      </div>
+    <HoverCard.Root>
+      <Card>
+        <Flex gap="3" align="center">
+          <Avatar size="3" radius="full" fallback="🖥️" />
+          <Flex direction="column">
+            <Flex gap="2" align="center">
+              <Text size="3" weight="bold">
+                I/O Node
+              </Text>
+              <HoverCard.Trigger>
+                <InfoCircledIcon />
+              </HoverCard.Trigger>
+            </Flex>
+            <Text size="1">{data?.io_type || 'Output'}</Text>
+          </Flex>
+        </Flex>
 
-      <div className="p-3 space-y-2">
-        <div className="space-y-1">
-          <label className="text-xs font-medium text-gray-11">Model</label>
-          <DropdownMenu.Root>
-            <DropdownMenu.Trigger className="w-full flex items-center justify-between px-2 py-1 text-sm bg-gray-3 rounded">
-              <div>
-                GPT-4
-                <MixerHorizontalIcon className="text-gray-10" />
-              </div>
-            </DropdownMenu.Trigger>
-          </DropdownMenu.Root>
-        </div>
+        <HoverCard.Content maxWidth="300px">
+          <Flex direction="column" gap="3">
+            <Flex direction="column" gap="0">
+              <Text size="2" as="div" weight="bold">
+                I/O Type
+              </Text>
+              <Text size="1" as="div">
+                {data?.io_type || 'Output'}
+              </Text>
+            </Flex>
 
-        {/* Temperature Control */}
-        <div className="space-y-1">
-          <div className="flex justify-between text-xs">
-            <span className="text-gray-11">Temperature</span>
-            <span className="text-gray-12">0.7</span>
-          </div>
-          <Slider defaultValue={[0.7]} max={1} step={0.1} />
-        </div>
-
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!bg-blue-8"
-        />
-        <Handle type="target" position={Position.Top} className="!bg-green-8" />
-      </div>
-    </Card>
-  );
-};
-
-const APINode = ({ data }) => (
-  <Card className="w-72 bg-gray-2 rounded-lg shadow-sm border border-gray-6">
-    <div className="flex items-center px-3 py-2 border-b border-gray-6">
-      <span className="text-green-10 mr-2">🌐</span>
-      <span className="font-medium text-gray-12">API Integration</span>
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger className="ml-auto">
-          <DotsHorizontalIcon className="text-gray-10 hover:text-gray-12" />
-        </DropdownMenu.Trigger>
-      </DropdownMenu.Root>
-    </div>
-
-    <div className="p-3 space-y-3">
-      <div className="space-y-2">
-        <label className="text-xs font-medium text-gray-11">
-          Request Configuration
-        </label>
-        <Select.Root defaultValue="GET">
-          <Select.Trigger className="w-full" />
-          <Select.Content>
-            <Select.Item value="GET">GET</Select.Item>
-            <Select.Item value="POST">POST</Select.Item>
-            <Select.Item value="PUT">PUT</Select.Item>
-          </Select.Content>
-        </Select.Root>
-
-        <TextField.Root placeholder="https://api.example.com/endpoint" />
-      </div>
-
-      <div className="space-y-2">
-        <details className="group">
-          <summary className="flex items-center text-xs font-medium text-gray-11 cursor-pointer">
-            Advanced Settings
-            <span className="ml-auto transform transition-transform group-open:rotate-180">
-              ▼
-            </span>
-          </summary>
-          <div className="mt-2 space-y-2">
-            <TextField.Root placeholder="Headers (JSON)" />
-            <TextField.Root placeholder="Request Body (JSON)" />
-          </div>
-        </details>
-      </div>
-
-      <Flex justify="between" align="center">
-        <Button variant="soft" size="1" onClick={data.onTest}>
-          <PaperPlaneIcon className="mr-1" />
-          Test Connection
-        </Button>
-        <span className="text-xs text-gray-10">Last tested: 2m ago</span>
-      </Flex>
+            <Flex direction="column" gap="0">
+              <Text size="2" as="div" weight="bold">
+                Data Type
+              </Text>
+              <Text size="1" as="div">
+                {data?.data_type || 'text'}
+              </Text>
+            </Flex>
+          </Flex>
+        </HoverCard.Content>
+      </Card>
 
       <Handle
         type="source"
-        position={Position.Bottom}
-        className="!w-3 !h-3 !bg-green-8"
+        position={data?.source_position || Position.Bottom}
       />
-      <Handle
-        type="target"
-        position={Position.Top}
-        className="!w-3 !h-3 !bg-purple-8"
-      />
-    </div>
-  </Card>
-);
+      <Handle type="target" position={data?.target_position || Position.Top} />
+    </HoverCard.Root>
+  );
+};
 
-const ConditionalNode = ({ data = [] }) => {
+const AINodeHoverDetails = ({ data }) => {
+  const LLM_Details = (
+    <HoverCard.Content maxWidth="300px">
+      <Flex direction="column" gap="3">
+        <Flex direction="column" gap="0">
+          <Text size="2" as="div" weight="bold">
+            Provider
+          </Text>
+          <Text size="1" as="div">
+            {data?.llm?.provider || 'OpenAI'}
+          </Text>
+        </Flex>
+
+        <Flex direction="column" gap="0">
+          <Text size="2" as="div" weight="bold">
+            Model
+          </Text>
+          <Text size="1" as="div">
+            {data?.llm?.model || 'gpt-4o'}
+          </Text>
+        </Flex>
+
+        <Flex direction="column" gap="0">
+          <Text size="2" as="div" weight="bold">
+            System Prompt
+          </Text>
+          <Text size="1" as="div">
+            {data?.llm?.prompt || 'No prompt configured'}
+          </Text>
+        </Flex>
+      </Flex>
+    </HoverCard.Content>
+  );
+
+  const TTS_Details = (
+    <HoverCard.Content maxWidth="300px">
+      <Flex direction="column" gap="3">
+        <Flex direction="column" gap="0">
+          <Text size="2" as="div" weight="bold">
+            Model
+          </Text>
+          <Text size="1" as="div">
+            {data?.llm?.model || 'deepgram'}
+          </Text>
+        </Flex>
+
+        <Flex direction="column" gap="0">
+          <Text size="2" as="div" weight="bold">
+            Voice
+          </Text>
+          <Text size="1" as="div">
+            {data?.llm?.voice || 'Indian'}
+          </Text>
+        </Flex>
+      </Flex>
+    </HoverCard.Content>
+  );
+
+  switch (data?.model) {
+    case 'LLM':
+      return LLM_Details;
+
+    case 'TTS':
+    case 'STT':
+      return TTS_Details;
+
+    default:
+      return LLM_Details;
+  }
+};
+
+const AINode = ({ data }) => {
   return (
-    <Card className="w-64 bg-gray-2 rounded-lg shadow-sm border border-gray-6">
-      <div className="flex items-center px-3 py-2 border-b border-gray-6">
-        <span className="text-purple-10 mr-2">⚖️</span>
-        <span className="font-medium text-gray-12">Condition</span>
-        <DropdownMenu.Root>
-          <DropdownMenu.Trigger className="ml-auto">
-            <DotsHorizontalIcon className="text-gray-10 hover:text-gray-12" />
-          </DropdownMenu.Trigger>
-        </DropdownMenu.Root>
-      </div>
-
-      <div className="p-3 space-y-3">
-        <div className="space-y-2">
-          {data?.conditions?.map((condition, index) => (
-            <Flex key={index} gap="2" align="center">
-              <DropdownMenu.Root>
-                <DropdownMenu.Trigger variant="soft">
-                  <Text size="1">{condition.source || 'Select input'}</Text>
-                </DropdownMenu.Trigger>
-              </DropdownMenu.Root>
-
-              <Select.Root defaultValue="contains">
-                <Select.Trigger />
-                <Select.Content>
-                  <Select.Item value="contains">contains</Select.Item>
-                  <Select.Item value="==">equals</Select.Item>
-                  <Select.Item value=">">greater than</Select.Item>
-                </Select.Content>
-              </Select.Root>
-
-              <TextField.Root placeholder="Value" size="2" />
-
-              <Button
-                variant="ghost"
-                size="1"
-                onClick={() => data.removeCondition(index)}
-              >
-                <TrashIcon className="text-red-9" />
-              </Button>
+    <HoverCard.Root>
+      <Card>
+        <Flex gap="3" align="center">
+          <Avatar size="3" radius="full" fallback="🧠" />
+          <Flex direction="column">
+            <Flex gap="2" align="center">
+              <Text size="3" weight="bold">
+                AI Node
+              </Text>
+              <HoverCard.Trigger>
+                <InfoCircledIcon />
+              </HoverCard.Trigger>
             </Flex>
-          ))}
-        </div>
+            <Text size="1">{data?.model || 'LLM'}</Text>
+          </Flex>
+        </Flex>
 
-        {/* <Flex justify="between" align="center">
-          <Button variant="soft" size="1" onClick={data.addCondition}>
-            <PlusIcon className="mr-1" />
-            Add Condition
-          </Button>
-          <Select.Root defaultValue="AND">
-            <Select.Trigger size="1" />
-            <Select.Content>
-              <Select.Item value="AND">ALL (AND)</Select.Item>
-              <Select.Item value="OR">ANY (OR)</Select.Item>
-            </Select.Content>
-          </Select.Root>
-        </Flex> */}
+        {AINodeHoverDetails({ data })}
+      </Card>
 
-        <Handle
-          type="source"
-          position={Position.Bottom}
-          className="!w-3 !h-3 !bg-purple-8"
-        />
-        <Handle
-          type="target"
-          position={Position.Top}
-          className="!w-3 !h-3 !bg-orange-8"
-        />
-      </div>
-    </Card>
+      <Handle
+        type="source"
+        position={data?.source_position || Position.Bottom}
+      />
+      <Handle type="target" position={data?.target_position || Position.Top} />
+    </HoverCard.Root>
+  );
+};
+
+const ToolNode = ({ data }) => {
+  return (
+    <HoverCard.Root>
+      <Card>
+        <Flex gap="3" align="center">
+          <Avatar size="3" radius="full" fallback="🔧" />
+          <Flex direction="column">
+            <Flex gap="2" align="center">
+              <Text size="3" weight="bold">
+                Tool Node
+              </Text>
+              <HoverCard.Trigger>
+                <InfoCircledIcon />
+              </HoverCard.Trigger>
+            </Flex>
+            <Text size="1">REST API</Text>
+          </Flex>
+        </Flex>
+
+        <HoverCard.Content maxWidth="300px">
+          <Flex direction="column" gap="3">
+            <Flex direction="column" gap="0">
+              <Text size="2" as="div" weight="bold">
+                Integration Type
+              </Text>
+              <Text size="1" as="div">
+                {data?.type || 'API Connection'}
+              </Text>
+            </Flex>
+
+            <Flex direction="column" gap="0">
+              <Text size="2" as="div" weight="bold">
+                Protocol
+              </Text>
+              <Text size="1" as="div">
+                {data?.protocol || 'REST'}
+              </Text>
+            </Flex>
+
+            <Flex direction="column" gap="0">
+              <Text size="2" as="div" weight="bold">
+                Method
+              </Text>
+              <Text size="1" as="div">
+                {data?.method || 'GET'}
+              </Text>
+            </Flex>
+
+            <Flex direction="column" gap="0">
+              <Text size="2" as="div" weight="bold">
+                Endpoint
+              </Text>
+              <Text size="1" as="div">
+                {data?.endpoint || 'https://cawerwsd.apigateway.aws.com/api/v1'}
+              </Text>
+            </Flex>
+          </Flex>
+        </HoverCard.Content>
+      </Card>
+
+      <Handle
+        type="source"
+        position={data?.source_position || Position.Bottom}
+      />
+      <Handle type="target" position={data?.target_position || Position.Top} />
+    </HoverCard.Root>
+  );
+};
+
+const LogicNode = ({ data }) => {
+  return (
+    <HoverCard.Root>
+      <Card>
+        <Flex gap="3" align="center">
+          <Avatar size="3" radius="full" fallback="💡" />
+          <Flex direction="column">
+            <Flex gap="2" align="center">
+              <Text size="3" weight="bold">
+                Logic Node
+              </Text>
+              <HoverCard.Trigger>
+                <InfoCircledIcon />
+              </HoverCard.Trigger>
+            </Flex>
+            <Text size="1">Validation</Text>
+          </Flex>
+        </Flex>
+
+        <HoverCard.Content maxWidth="400px">
+          <Table.Root>
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell width="250px">
+                  Condition
+                </Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell width="150px">
+                  Action
+                </Table.ColumnHeaderCell>
+              </Table.Row>
+            </Table.Header>
+
+            <Table.Body>
+              <Table.Row>
+                <Table.RowHeaderCell>
+                  <Code>{data?.condition || 'response.status == 200'}</Code>
+                </Table.RowHeaderCell>
+                <Table.Cell>
+                  <Code variant="solid">{data?.action || 'output-node-1'}</Code>
+                </Table.Cell>
+              </Table.Row>
+
+              <Table.Row>
+                <Table.RowHeaderCell>
+                  <Code>{data?.condition || 'response.status == 404'}</Code>
+                </Table.RowHeaderCell>
+                <Table.Cell>
+                  <Code variant="solid" color="crimson">
+                    {data?.action || 'output-node-2'}
+                  </Code>
+                </Table.Cell>
+              </Table.Row>
+            </Table.Body>
+          </Table.Root>
+        </HoverCard.Content>
+      </Card>
+
+      <Handle
+        type="source"
+        position={data?.source_position || Position.Bottom}
+      />
+      <Handle type="target" position={data?.target_position || Position.Top} />
+    </HoverCard.Root>
   );
 };
 
 const nodeTypes = {
-  llm: LLMNode,
-  api: APINode,
-  conditional: ConditionalNode,
+  io: IONode,
+  ai: AINode,
+  tool: ToolNode,
+  logic: LogicNode,
 };
 
 function HelloApp() {
