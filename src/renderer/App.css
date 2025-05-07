@@ -3,7 +3,7 @@
  *        See https://github.com/webpack-contrib/sass-loader#imports
  */
 
-
 body {
   font-family: sans-serif;
+  margin: 0;
 }
