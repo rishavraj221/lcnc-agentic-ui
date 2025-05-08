@@ -1,7 +1,16 @@
+import { useCallback } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import '@radix-ui/themes/styles.css';
-import { Avatar, Box, Code, IconButton, Table, Theme } from '@radix-ui/themes';
+import {
+  Avatar,
+  Box,
+  Code,
+  Heading,
+  IconButton,
+  Table,
+  Theme,
+} from '@radix-ui/themes';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -14,6 +23,7 @@ import {
   Handle,
   Position,
   MarkerType,
+  addEdge,
 } from '@xyflow/react';
 import {
   Card,
@@ -36,151 +46,63 @@ import {
   LightningBoltIcon,
   GearIcon,
   InfoCircledIcon,
+  Pencil1Icon,
 } from '@radix-ui/react-icons';
 
 import '@xyflow/react/dist/style.css';
 
-const initialNodes = [
+const CustomHandle = (props) => (
+  <Handle
+    {...props}
+    style={{ width: 1, height: 1, backgroundColor: 'lightgray' }}
+  />
+);
+
+const edge_points = [
   {
-    id: '1',
-    type: 'io',
-    position: { x: -50, y: 100 },
-    data: {
-      io_type: 'Input',
-      data_type: 'Voice',
-      source_position: Position.Bottom,
-      target_position: Position.Top,
-    },
+    type: 'source',
+    id: 's-b',
+    position: Position.Bottom,
   },
   {
-    id: '2a',
-    type: 'ai',
-    position: { x: -50, y: 250 },
-    data: {
-      model: 'TTS',
-      source_position: Position.Right,
-      target_position: Position.Top,
-    },
+    type: 'target',
+    id: 't-b',
+    position: Position.Bottom,
   },
   {
-    id: '2b',
-    type: 'ai',
-    position: { x: 250, y: 250 },
-    data: {
-      model: 'LLM',
-      source_position: Position.Bottom,
-      target_position: Position.Left,
-    },
+    type: 'source',
+    id: 's-t',
+    position: Position.Top,
   },
   {
-    id: '3',
-    type: 'tool',
-    position: { x: 250, y: 400 },
-    data: {
-      label: 'API Call 1',
-      source_position: Position.Left,
-      target_position: Position.Top,
-    },
+    type: 'target',
+    id: 't-t',
+    position: Position.Top,
   },
   {
-    id: '4',
-    type: 'logic',
-    position: { x: -50, y: 400 },
-    data: {
-      label: 'Condition 1',
-      source_position: Position.Bottom,
-      target_position: Position.Right,
-      conditions: [
-        { source: 'API Response', operator: 'contains', value: 'success' },
-      ],
-      addCondition: () => {},
-      removeCondition: () => {},
-    },
+    type: 'source',
+    id: 's-r',
+    position: Position.Right,
   },
   {
-    id: '5a',
-    type: 'ai',
-    position: { x: -50, y: 550 },
-    data: {
-      model: 'STT',
-      source_position: Position.Right,
-      target_position: Position.Top,
-    },
+    type: 'target',
+    id: 't-r',
+    position: Position.Right,
   },
   {
-    id: '5b',
-    type: 'ai',
-    position: { x: 250, y: 550 },
-    data: {
-      model: 'LLM',
-      source_position: Position.Bottom,
-      target_position: Position.Left,
-    },
+    type: 'source',
+    id: 's-l',
+    position: Position.Left,
   },
   {
-    id: '6',
-    type: 'io',
-    position: { x: 250, y: 700 },
-    data: {
-      io_type: 'Output',
-      data_type: 'Voice',
-      source_position: Position.Bottom,
-      target_position: Position.Top,
-    },
+    type: 'target',
+    id: 't-l',
+    position: Position.Left,
   },
 ];
 
-const initialEdges = [
-  {
-    id: 'e1-2',
-    source: '1',
-    target: '2a',
-    label: 'Process Data',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-  {
-    id: 'e2-3',
-    source: '2a',
-    target: '2b',
-    label: '',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-  {
-    id: 'e3-4',
-    source: '2b',
-    target: '3',
-    label: '',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-  {
-    id: 'e5-6',
-    source: '3',
-    target: '4',
-    label: '',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-  {
-    id: 'e6-7',
-    source: '4',
-    target: '5a',
-    label: '',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-  {
-    id: 'e7-8',
-    source: '5a',
-    target: '5b',
-    label: '',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-  {
-    id: 'e8-9',
-    source: '5b',
-    target: '6',
-    label: '',
-    markerEnd: { type: MarkerType.ArrowClosed },
-  },
-];
+const initialNodes = [];
+const initialEdges = [];
 
 function HelloApp() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
@@ -199,6 +121,42 @@ function HelloApp() {
 
   const handleDeleteNode = (nodeId) => {
     setNodes([...nodes.filter((n) => n.id !== nodeId)]);
+  };
+
+  const handleAddEdgePoint = (nodeId, pointType) => {};
+
+  const onConnect = useCallback((params) => {
+    setEdges((eds) => {
+      const tempParams = {
+        source: params.target,
+        target: params.source,
+        sourceHandle: `s-${params.targetHandle.split('-')[1]}`,
+        targetHandle: `t-${params.sourceHandle.split('-')[1]}`,
+        markerEnd: { type: MarkerType.ArrowClosed },
+      };
+      return addEdge(tempParams, eds || []);
+    });
+  }, []);
+
+  const NodeFooter = ({ id }) => {
+    return (
+      <Flex direction="column" gap="3">
+        <Flex gap="3">
+          <Button variant="soft" size="1">
+            <Pencil1Icon /> Edit
+          </Button>
+
+          <Button
+            variant="soft"
+            color="crimson"
+            onClick={() => handleDeleteNode(id)}
+            size="1"
+          >
+            <TrashIcon /> Delete
+          </Button>
+        </Flex>
+      </Flex>
+    );
   };
 
   const IONode = ({ id, data }) => {
@@ -240,25 +198,14 @@ function HelloApp() {
                 </Text>
               </Flex>
 
-              <Button
-                variant="soft"
-                color="crimson"
-                onClick={() => handleDeleteNode(id)}
-              >
-                <TrashIcon /> Delete Node
-              </Button>
+              {NodeFooter({ id })}
             </Flex>
           </HoverCard.Content>
         </Card>
 
-        <Handle
-          type="source"
-          position={data?.source_position || Position.Bottom}
-        />
-        <Handle
-          type="target"
-          position={data?.target_position || Position.Top}
-        />
+        {edge_points?.map((ep, i) => (
+          <CustomHandle type={ep?.type} id={ep.id} position={ep?.position} />
+        ))}
       </HoverCard.Root>
     );
   };
@@ -294,13 +241,7 @@ function HelloApp() {
             </Text>
           </Flex>
 
-          <Button
-            variant="soft"
-            color="crimson"
-            onClick={() => handleDeleteNode(id)}
-          >
-            <TrashIcon /> Delete Node
-          </Button>
+          {NodeFooter({ id })}
         </Flex>
       </HoverCard.Content>
     );
@@ -326,13 +267,7 @@ function HelloApp() {
             </Text>
           </Flex>
 
-          <Button
-            variant="soft"
-            color="crimson"
-            onClick={() => handleDeleteNode(id)}
-          >
-            <TrashIcon /> Delete Node
-          </Button>
+          {NodeFooter({ id })}
         </Flex>
       </HoverCard.Content>
     );
@@ -372,14 +307,9 @@ function HelloApp() {
           {AINodeHoverDetails({ id, data })}
         </Card>
 
-        <Handle
-          type="source"
-          position={data?.source_position || Position.Bottom}
-        />
-        <Handle
-          type="target"
-          position={data?.target_position || Position.Top}
-        />
+        {edge_points?.map((ep, i) => (
+          <CustomHandle type={ep?.type} id={ep.id} position={ep?.position} />
+        ))}
       </HoverCard.Root>
     );
   };
@@ -442,25 +372,14 @@ function HelloApp() {
                 </Text>
               </Flex>
 
-              <Button
-                variant="soft"
-                color="crimson"
-                onClick={() => handleDeleteNode(id)}
-              >
-                <TrashIcon /> Delete Node
-              </Button>
+              {NodeFooter({ id })}
             </Flex>
           </HoverCard.Content>
         </Card>
 
-        <Handle
-          type="source"
-          position={data?.source_position || Position.Bottom}
-        />
-        <Handle
-          type="target"
-          position={data?.target_position || Position.Top}
-        />
+        {edge_points?.map((ep, i) => (
+          <CustomHandle type={ep?.type} id={ep.id} position={ep?.position} />
+        ))}
       </HoverCard.Root>
     );
   };
@@ -523,25 +442,14 @@ function HelloApp() {
                 </Table.Body>
               </Table.Root>
 
-              <Button
-                variant="soft"
-                color="crimson"
-                onClick={() => handleDeleteNode(id)}
-              >
-                <TrashIcon /> Delete Node
-              </Button>
+              {NodeFooter({ id })}
             </Flex>
           </HoverCard.Content>
         </Card>
 
-        <Handle
-          type="source"
-          position={data?.source_position || Position.Bottom}
-        />
-        <Handle
-          type="target"
-          position={data?.target_position || Position.Top}
-        />
+        {edge_points?.map((ep, i) => (
+          <CustomHandle type={ep?.type} id={ep.id} position={ep?.position} />
+        ))}
       </HoverCard.Root>
     );
   };
@@ -567,6 +475,7 @@ function HelloApp() {
             fitView
             minZoom={0.25}
             maxZoom={2}
+            onConnect={onConnect}
           >
             <Background gap={24} variant="dots" size={1} />
 
