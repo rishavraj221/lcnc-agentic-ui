@@ -25,5 +25,9 @@ const electronHandler = {
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
+contextBridge.exposeInMainWorld('env', {
+  apiUrl: process.env.ELECTRON_API_URL,
+  openaiKey: process.env.ELECTRON_OPENAI_SECRET,
+});
 
 export type ElectronHandler = typeof electronHandler;

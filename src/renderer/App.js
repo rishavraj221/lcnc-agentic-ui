@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
 import './App.css';
 import '@radix-ui/themes/styles.css';
@@ -10,6 +10,7 @@ import {
   Heading,
   IconButton,
   RadioGroup,
+  Spinner,
   Table,
   Theme,
 } from '@radix-ui/themes';
@@ -51,8 +52,12 @@ import {
   InfoCircledIcon,
   Pencil1Icon,
   FileIcon,
+  CheckCircledIcon,
 } from '@radix-ui/react-icons';
+import axios from 'axios';
 import '@xyflow/react/dist/style.css';
+
+import BotUI from './Bot';
 
 loader.config({
   paths: {
@@ -62,6 +67,9 @@ loader.config({
 
 const NODE_EDITOR = 'node-editor';
 const ENV_EDITOR = 'env-editor';
+const INTERFACE = 'interface';
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const CustomHandle = (props) => (
   <Handle
@@ -142,16 +150,6 @@ const addNodesDropDownData = [
     label: 'Chatbot',
     value: 'chatbot',
   },
-  {
-    icon: '🟢',
-    label: 'Start Node',
-    value: 'start',
-  },
-  {
-    icon: '🔴',
-    label: 'End Node',
-    value: 'end',
-  },
 ];
 
 function HelloApp() {
@@ -161,6 +159,32 @@ function HelloApp() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogBoxType, setDialogBoxType] = useState('');
   const [dialogBoxData, setDialogBoxData] = useState({});
+
+  const [traversalTrigger, setTraversalTrigger] = useState(false);
+
+  const [graphInterfaceData, setGraphInterfaceData] = useState({
+    currentNodeId: 'start',
+    interfaceComponents: [],
+    isGraphRunning: false,
+  });
+
+  useEffect(() => {
+    const startNode = {
+      id: 'start',
+      type: 'start',
+      position: { x: 100, y: 100 },
+      data: {},
+    };
+
+    const endNode = {
+      id: 'end',
+      type: 'end',
+      position: { x: 300, y: 100 },
+      data: {},
+    };
+
+    setNodes([startNode, endNode]);
+  }, []);
 
   const handleAddNode = (nodeType) => {
     const newNode = {
@@ -192,6 +216,38 @@ function HelloApp() {
     });
   }, []);
 
+  const buildGraph = () => {
+    const id_type_obj = {};
+
+    nodes.forEach((nd) => {
+      id_type_obj[nd.id] = nd.type;
+    });
+
+    const graph = {};
+
+    edges.forEach((ed) => {
+      if (graph[ed.source]) {
+        graph[ed.source].push(ed.target);
+      } else {
+        graph[ed.source] = [ed.target];
+      }
+    });
+
+    return { graph, id_type_obj };
+  };
+
+  const getNextNodeId = (currNode = graphInterfaceData.currentNodeId) => {
+    const { graph, id_type_obj } = buildGraph();
+
+    if (graph[currNode]?.length > 0) {
+      const nextNodeId = graph[currNode][0];
+
+      return nextNodeId;
+    }
+
+    return null;
+  };
+
   const DialogBox = ({ type, data }) => {
     switch (type) {
       case ENV_EDITOR:
@@ -217,7 +273,17 @@ function HelloApp() {
               {`Edit ${data?.nodeName}`}
             </Text>
 
-            {console.log(data)}
+            {data?.component || <data.component />}
+          </Flex>
+        );
+
+      case INTERFACE:
+        return (
+          <Flex direction="column" gap="3">
+            <Text size="3" weight="bold">
+              Interface
+            </Text>
+
             {data?.component || <data.component />}
           </Flex>
         );
@@ -302,8 +368,19 @@ function HelloApp() {
           ioType: 'input',
           dataType: 'string',
         }}
-        onSubmit={() => {
+        onSubmit={(values, { setSubmitting }) => {
           setDialogOpen(false);
+
+          const tempNodes = [...nodes];
+          const nodeIndex = tempNodes.findIndex((nd) => nd.id === id);
+
+          if (nodeIndex > -1) {
+            tempNodes[nodeIndex].data = {
+              ...values,
+            };
+          }
+
+          setNodes(tempNodes);
         }}
       >
         {({
@@ -313,6 +390,7 @@ function HelloApp() {
           handleChange,
           handleBlur,
           isSubmitting,
+          setFieldValue,
         }) => (
           <Form>
             <Flex direction="column" gap="3">
@@ -325,6 +403,7 @@ function HelloApp() {
                   defaultValue="input"
                   type="ioType"
                   name="ioType"
+                  onValueChange={(e) => setFieldValue('ioType', e)}
                 >
                   <Flex gap="3">
                     <RadioGroup.Item value="input">Input</RadioGroup.Item>
@@ -342,6 +421,7 @@ function HelloApp() {
                   defaultValue="string"
                   type="dataType"
                   name="dataType"
+                  onValueChange={(e) => setFieldValue('dataType', e)}
                 >
                   <Flex gap="3">
                     <RadioGroup.Item value="string">
@@ -376,7 +456,7 @@ function HelloApp() {
                   <InfoCircledIcon />
                 </HoverCard.Trigger>
               </Flex>
-              <Text size="1">{data?.io_type || 'Output'}</Text>
+              <Text size="1">{data?.ioType || 'Input'}</Text>
             </Flex>
           </Flex>
 
@@ -387,7 +467,7 @@ function HelloApp() {
                   I/O Type
                 </Text>
                 <Text size="1" as="div">
-                  {data?.io_type || 'Output'}
+                  {data?.ioType || 'Input'}
                 </Text>
               </Flex>
 
@@ -396,7 +476,7 @@ function HelloApp() {
                   Data Type
                 </Text>
                 <Text size="1" as="div">
-                  {data?.data_type || 'text'}
+                  {data?.dataType || 'string'}
                 </Text>
               </Flex>
 
@@ -416,6 +496,73 @@ function HelloApp() {
         ))}
       </HoverCard.Root>
     );
+  };
+
+  const LLMAINodeEditor = ({ id }) => {
+    return (
+      <Formik
+        initialValues={{
+          provider: 'openai',
+          model: 'gpt-4o',
+        }}
+        onSubmit={() => {
+          setDialogOpen(false);
+        }}
+      >
+        {({
+          values,
+          errors,
+          touched,
+          handleChange,
+          handleBlur,
+          isSubmitting,
+        }) => (
+          <Form>
+            <Flex direction="column" gap="3">
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="bold">
+                  Provider
+                </Text>
+
+                <RadioGroup.Root
+                  defaultValue="openai"
+                  type="provider"
+                  name="provider"
+                >
+                  <Flex gap="3">
+                    <RadioGroup.Item value="openai">OpenAI</RadioGroup.Item>
+                  </Flex>
+                </RadioGroup.Root>
+              </Flex>
+
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="bold">
+                  Model
+                </Text>
+
+                <RadioGroup.Root
+                  defaultValue="gpt-4o"
+                  type="model"
+                  name="model"
+                >
+                  <Flex gap="3">
+                    <RadioGroup.Item value="gpt-4o">gpt-4o</RadioGroup.Item>
+                  </Flex>
+                </RadioGroup.Root>
+              </Flex>
+
+              <Flex gap="3">
+                <Button>Save</Button>
+              </Flex>
+            </Flex>
+          </Form>
+        )}
+      </Formik>
+    );
+  };
+
+  const CustomAINodeEditor = ({ id }) => {
+    return <Text>Coming soon ...</Text>;
   };
 
   const AINodeHoverDetails = ({ id, data }) => {
@@ -449,7 +596,13 @@ function HelloApp() {
             </Text>
           </Flex>
 
-          {NodeFooter({ id })}
+          <NodeFooter
+            id={id}
+            dialogData={{
+              nodeName: 'AI Node',
+              component: LLMAINodeEditor({ id }),
+            }}
+          />
         </Flex>
       </HoverCard.Content>
     );
@@ -475,7 +628,13 @@ function HelloApp() {
             </Text>
           </Flex>
 
-          {NodeFooter({ id })}
+          <NodeFooter
+            id={id}
+            dialogData={{
+              nodeName: 'Custom AI Node',
+              component: CustomAINodeEditor({ id }),
+            }}
+          />
         </Flex>
       </HoverCard.Content>
     );
@@ -519,6 +678,69 @@ function HelloApp() {
           <CustomHandle type={ep?.type} id={ep.id} position={ep?.position} />
         ))}
       </HoverCard.Root>
+    );
+  };
+
+  const ChatBotNodeEditor = ({ id }) => {
+    return (
+      <Formik
+        initialValues={{
+          provider: 'openai',
+          model: 'gpt-4o',
+        }}
+        onSubmit={() => {
+          setDialogOpen(false);
+        }}
+      >
+        {({
+          values,
+          errors,
+          touched,
+          handleChange,
+          handleBlur,
+          isSubmitting,
+        }) => (
+          <Form>
+            <Flex direction="column" gap="3">
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="bold">
+                  Provider
+                </Text>
+
+                <RadioGroup.Root
+                  defaultValue="openai"
+                  type="provider"
+                  name="provider"
+                >
+                  <Flex gap="3">
+                    <RadioGroup.Item value="openai">OpenAI</RadioGroup.Item>
+                  </Flex>
+                </RadioGroup.Root>
+              </Flex>
+
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="bold">
+                  Model
+                </Text>
+
+                <RadioGroup.Root
+                  defaultValue="gpt-4o"
+                  type="model"
+                  name="model"
+                >
+                  <Flex gap="3">
+                    <RadioGroup.Item value="gpt-4o">gpt-4o</RadioGroup.Item>
+                  </Flex>
+                </RadioGroup.Root>
+              </Flex>
+
+              <Flex gap="3">
+                <Button>Save</Button>
+              </Flex>
+            </Flex>
+          </Form>
+        )}
+      </Formik>
     );
   };
 
@@ -570,7 +792,13 @@ function HelloApp() {
                 </Text>
               </Flex>
 
-              {NodeFooter({ id })}
+              <NodeFooter
+                id={id}
+                dialogData={{
+                  nodeName: 'Chatbot Node',
+                  component: ChatBotNodeEditor({ id }),
+                }}
+              />
             </Flex>
           </HoverCard.Content>
         </Card>
@@ -580,6 +808,10 @@ function HelloApp() {
         ))}
       </HoverCard.Root>
     );
+  };
+
+  const ToolNodeEditor = ({ id }) => {
+    return <Text>Coming soon ...</Text>;
   };
 
   const ToolNode = ({ id, data }) => {
@@ -640,7 +872,13 @@ function HelloApp() {
                 </Text>
               </Flex>
 
-              {NodeFooter({ id })}
+              <NodeFooter
+                id={id}
+                dialogData={{
+                  nodeName: 'Tool Node',
+                  component: ToolNodeEditor({ id }),
+                }}
+              />
             </Flex>
           </HoverCard.Content>
         </Card>
@@ -650,6 +888,10 @@ function HelloApp() {
         ))}
       </HoverCard.Root>
     );
+  };
+
+  const LogicNodeEditor = ({ id }) => {
+    return <Text>Coming Soon ...</Text>;
   };
 
   const LogicNode = ({ id, data }) => {
@@ -710,7 +952,13 @@ function HelloApp() {
                 </Table.Body>
               </Table.Root>
 
-              {NodeFooter({ id })}
+              <NodeFooter
+                id={id}
+                dialogData={{
+                  nodeName: 'Logic Node',
+                  component: LogicNodeEditor({ id }),
+                }}
+              />
             </Flex>
           </HoverCard.Content>
         </Card>
@@ -722,6 +970,88 @@ function HelloApp() {
     );
   };
 
+  const InterfaceDialog = ({}) => {
+    const AskTextInput = () => {
+      const [inputValue, setInputValue] = useState('');
+
+      return (
+        <Flex gap="3" align="center" justify="between">
+          <Text size="1" weight="medium" color="gray">
+            Input
+          </Text>
+
+          <input
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            placeholder="Enter Text Input ..."
+            style={{
+              all: 'unset',
+              padding: '8px',
+              fontSize: '14px',
+            }}
+          />
+
+          <Button
+            id="user-input-button"
+            onClick={() => {
+              const { graph, id_type_obj } = buildGraph();
+
+              const nextNodeIndex = nodes.findIndex(
+                (nd) => nd.id === getNextNodeId(),
+              );
+
+              const tempCompData = [...graphInterfaceData.interfaceComponents];
+              tempCompData.splice(tempCompData.length - 1, 1);
+              setGraphInterfaceData({
+                ...graphInterfaceData,
+                currentNodeId: getNextNodeId(),
+                interfaceComponents: tempCompData,
+              });
+
+              setTraversalTrigger(!traversalTrigger);
+            }}
+          >
+            Submit
+          </Button>
+        </Flex>
+      );
+    };
+
+    const TextOutput = ({ outputValue }) => (
+      <Flex gap="3">
+        <Text size="1" weight="medium" color="gray">
+          Output
+        </Text>
+
+        <Text size="3" weight="regular">
+          {outputValue}
+        </Text>
+      </Flex>
+    );
+
+    return (
+      <Flex direction="column" gap="4">
+        {graphInterfaceData.interfaceComponents?.map((nd, i) => {
+          switch (nd.type) {
+            case 'io':
+              {
+                if (nd.ioType === 'output')
+                  return <TextOutput outputValue={data[i]?.value} />;
+                return <AskTextInput />;
+              }
+              break;
+
+            case 'chatbot':
+              return <Text>Chatbot</Text>;
+
+            default:
+              return <></>;
+          }
+        })}
+      </Flex>
+    );
+  };
+
   const nodeTypes = {
     io: IONode,
     ai: AINode,
@@ -730,6 +1060,66 @@ function HelloApp() {
     chatbot: ChatBotNode,
     start: StartNode,
     end: EndNode,
+  };
+
+  useEffect(() => {
+    if (graphInterfaceData.isGraphRunning) {
+      const { graph, id_type_obj } = buildGraph();
+
+      const currNodeId = graphInterfaceData.currentNodeId;
+      const nodeIndex = nodes.findIndex((nd) => nd.id === currNodeId);
+
+      const intComp = {
+        type: id_type_obj[currNodeId],
+        ioType: nodeIndex > -1 ? nodes[nodeIndex]?.data?.ioType : null,
+      };
+      const { interfaceComponents, restData } = graphInterfaceData;
+      interfaceComponents.push(intComp);
+      setGraphInterfaceData({
+        ...restData,
+        interfaceComponents,
+      });
+
+      const nextNodeId = getNextNodeId(currNodeId);
+      if (nextNodeId)
+        setGraphInterfaceData({
+          ...graphInterfaceData,
+          currentNodeId: nextNodeId,
+        });
+
+      setDialogBoxData({
+        component: <InterfaceDialog />,
+      });
+
+      if (currNodeId === 'start') setTraversalTrigger(!traversalTrigger);
+      if (id_type_obj[currNodeId] === 'chatbot') {
+        console.log('curr node id', currNodeId);
+        console.log('curr node type', id_type_obj[currNodeId]);
+        console.log('i am gonna call flask server now...');
+      }
+    }
+  }, [traversalTrigger]);
+
+  const handleRun = async () => {
+    try {
+      setGraphInterfaceData({
+        isGraphRunning: true,
+        currentNodeId: 'start',
+        interfaceComponents: [],
+      });
+
+      setDialogOpen(true);
+      setDialogBoxType(INTERFACE);
+      setDialogBoxData({
+        component: <InterfaceDialog />,
+      });
+
+      setTimeout(() => {
+        setTraversalTrigger(!traversalTrigger);
+      }, 500);
+    } catch (e) {
+      console.warn(e);
+    }
   };
 
   return (
@@ -757,6 +1147,14 @@ function HelloApp() {
 
           <Box p="2">
             <Flex direction="column" gap="3">
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="bold" as="div">
+                  Application
+                </Text>
+
+                <Button onClick={handleRun}>Run</Button>
+              </Flex>
+
               <Flex direction="column" gap="2">
                 <Text size="2" weight="bold" as="div">
                   Controls
@@ -806,6 +1204,18 @@ function HelloApp() {
                   </Dialog.Trigger>
                 </Tooltip>
               </Flex>
+
+              <Flex direction="column" gap="2">
+                <Text size="2" weight="bold" as="div">
+                  Test console
+                </Text>
+
+                <Text>{`isGraphRunning: ${graphInterfaceData.isGraphRunning}`}</Text>
+                <Text>{`current node id: ${graphInterfaceData.currentNodeId}`}</Text>
+                <Text>{`current node type: ${buildGraph().id_type_obj[graphInterfaceData.currentNodeId]}`}</Text>
+                <Text>{`interface components length: ${graphInterfaceData.interfaceComponents.length}`}</Text>
+                <Text>{`interface components: ${JSON.stringify(graphInterfaceData.interfaceComponents, null, 2)}`}</Text>
+              </Flex>
             </Flex>
           </Box>
         </Flex>
@@ -823,7 +1233,8 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<HelloApp />} />
+        {/* <Route path="/" element={<HelloApp />} /> */}
+        <Route path="/" element={<BotUI />} />
       </Routes>
     </Router>
   );
